@@ -56,9 +56,10 @@ type DiffStats struct {
 // Service provides git operations for ralphex workflows.
 // It is the single public API for the git package.
 type Service struct {
-	repo    backend
-	log     Logger
-	trailer string // optional trailer line appended to all commits
+	repo           backend
+	log            Logger
+	trailer        string // optional trailer line appended to all commits
+	commitPlanFile bool
 }
 
 // NewService opens a git repository and returns a Service.
@@ -74,7 +75,12 @@ func NewService(path string, log Logger, vcsCmd ...string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{repo: b, log: log}, nil
+	return &Service{repo: b, log: log, commitPlanFile: true}, nil
+}
+
+// SetCommitPlanFile controls Ralphex's own plan commits.
+func (s *Service) SetCommitPlanFile(enabled bool) {
+	s.commitPlanFile = enabled
 }
 
 // SetCommitTrailer sets an optional trailer line appended to all commit messages.
@@ -250,7 +256,7 @@ func (s *Service) preparePlanBranch(planFile string, worktreeMode bool, defaultB
 // CreateBranchForPlan creates or switches to a feature branch for plan execution.
 // If already on a feature branch (not the default branch), returns nil immediately.
 // If on the default branch, extracts branch name from plan file and creates/switches to it.
-// If plan file has uncommitted changes and is the only dirty file, auto-commits it.
+// If enabled, auto-commits a changed plan file after branch creation.
 // defaultBranch is the resolved default branch name (e.g. "main", "develop").
 // branchOverride, when non-empty, is used directly instead of deriving the name from planFile.
 func (s *Service) CreateBranchForPlan(planFile, defaultBranch, branchOverride string) error {
@@ -277,7 +283,7 @@ func (s *Service) CreateBranchForPlan(planFile, defaultBranch, branchOverride st
 	}
 
 	// auto-commit plan file if it was the only uncommitted file
-	if planHasChanges {
+	if planHasChanges && s.commitPlanFile {
 		s.log.Printf("committing plan file: %s\n", filepath.Base(planFile))
 		if err := s.repo.add(planFile); err != nil {
 			return fmt.Errorf("stage plan file: %w", err)
@@ -299,7 +305,7 @@ func (s *Service) CreateBranchForPlan(planFile, defaultBranch, branchOverride st
 // defaultBranch is the resolved default branch name (e.g. "main", "develop").
 // branchOverride, when non-empty, is used directly instead of deriving the name from planFile.
 // ordinary uncommitted files in the source checkout are logged but do not block creation. an
-// uncommitted selected plan is copied into the worktree and committed on the feature branch.
+// uncommitted selected plan is copied into the worktree; the caller decides whether to commit it.
 func (s *Service) CreateWorktreeForPlan(planFile, defaultBranch, branchOverride string) (string, bool, error) {
 	planFile = s.resolveFilesystemCase(planFile)
 
@@ -468,7 +474,8 @@ func (s *Service) RemoveWorktree(path string) error {
 	return nil
 }
 
-// MovePlanToCompleted moves a plan file to the completed/ subdirectory and commits.
+// MovePlanToCompleted moves a plan file to the completed/ subdirectory.
+// When plan commits are disabled, it only renames the file and leaves the index untouched.
 // The commit is restricted to the plan paths, so unrelated staged changes in the
 // repository are left staged rather than swept into it.
 // Creates the completed/ directory if it doesn't exist.
@@ -491,6 +498,18 @@ func (s *Service) MovePlanToCompleted(planFile string) error {
 
 	sourceFile, destPath, done := s.resolvePlanMoveTargets(planFile, completedDir)
 	if done {
+		return nil
+	}
+	if !s.commitPlanFile {
+		if _, statErr := os.Lstat(destPath); statErr == nil {
+			return fmt.Errorf("move plan: %s already exists, refusing to overwrite it with %s - resolve by hand and re-run", destPath, sourceFile)
+		} else if !os.IsNotExist(statErr) {
+			return fmt.Errorf("check completed plan destination: %w", statErr)
+		}
+		if err := os.Rename(sourceFile, destPath); err != nil {
+			return fmt.Errorf("move plan: %w", err)
+		}
+		s.log.Printf("moved plan to %s\n", destPath)
 		return nil
 	}
 

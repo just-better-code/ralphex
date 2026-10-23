@@ -305,6 +305,9 @@ func run(ctx context.Context, o opts) error {
 		return fmt.Errorf("open git repo: %w", err)
 	}
 	gitSvc.SetCommitTrailer(cfg.CommitTrailer)
+	if cfg.CommitPlanFileSet {
+		gitSvc.SetCommitPlanFile(cfg.CommitPlanFile)
+	}
 
 	// ensure repository has commits (prompts to create initial commit if empty)
 	if ensureErr := ensureRepoHasCommits(ctx, gitSvc, os.Stdin, os.Stdout); ensureErr != nil {
@@ -650,6 +653,9 @@ func executePlan(ctx context.Context, o opts, req executePlanRequest) error {
 
 	// create and run the runner
 	r := createRunner(req, o, runnerLog, plr.holder)
+	if req.Mode == processor.ModeFull || req.Mode == processor.ModeTasksOnly {
+		r.SetInputCollector(input.NewTerminalCollector(o.NoColor))
+	}
 
 	// listen for SIGQUIT (Ctrl+\) for manual break during task and review loops
 	if breakCh := startBreakSignal(); breakCh != nil {
@@ -701,6 +707,9 @@ func executePlan(ctx context.Context, o opts, req executePlanRequest) error {
 // restored; the worktree is removed unless the plan archive left state behind in it, in which
 // case it is kept for recovery. req.WtCleanup is populated for interrupt handler use.
 func runWithWorktree(ctx context.Context, o opts, req executePlanRequest) (err error) {
+	if req.Config.MovePlanOnCompletion && req.Config.CommitPlanFileSet && !req.Config.CommitPlanFile {
+		return errors.New("cannot move an uncommitted plan from a temporary worktree; disable use_worktree or enable commit_plan_file")
+	}
 	wtPath, planNeedsCommit, err := req.GitSvc.CreateWorktreeForPlan(req.PlanFile, req.DefaultBranch, req.BranchOverride)
 	if err != nil {
 		return fmt.Errorf("create worktree: %w", err)
@@ -789,9 +798,12 @@ func runWithWorktree(ctx context.Context, o opts, req executePlanRequest) (err e
 		return fmt.Errorf("open worktree git service: %w", err)
 	}
 	wtGitSvc.SetCommitTrailer(req.Config.CommitTrailer)
+	if req.Config.CommitPlanFileSet {
+		wtGitSvc.SetCommitPlanFile(req.Config.CommitPlanFile)
+	}
 
 	// commit plan file on the feature branch (inside worktree), not on the default branch
-	if planNeedsCommit {
+	if planNeedsCommit && (!req.Config.CommitPlanFileSet || req.Config.CommitPlanFile) {
 		if commitErr := wtGitSvc.CommitPlanFile(req.PlanFile, req.GitSvc.Root()); commitErr != nil {
 			return fmt.Errorf("commit plan in worktree: %w", commitErr)
 		}
@@ -963,7 +975,7 @@ func makePauseHandler(stdin io.Reader, stdout io.Writer) func(ctx context.Contex
 
 // archivePlan moves a completed plan into completed/ and reports a failure through the progress
 // logger, so the progress file holds it - a bare stderr write left no trace in the run's own record.
-// the archive always runs against req.GitSvc, so in worktree mode the move and its commit land
+// the archive always runs against req.GitSvc. In worktree mode the move and its commit land
 // on the feature branch alongside the ticked plan rather than in the user's main checkout.
 // the returned error is what displayStats repeats at the end of the summary.
 func archivePlan(req executePlanRequest, log *progress.Logger) (moved bool, err error) {

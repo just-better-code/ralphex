@@ -106,7 +106,7 @@ type PlanCreationLogger interface {
 	LogDraftReview(action string, feedback string)
 }
 
-// InputCollector collects user input for interactive plan creation.
+// InputCollector collects user input for planning and task clarification.
 type InputCollector interface {
 	AskQuestion(ctx context.Context, question string, options []string) (string, error)
 	AskDraftReview(ctx context.Context, question string, planContent string) (action string, feedback string, err error)

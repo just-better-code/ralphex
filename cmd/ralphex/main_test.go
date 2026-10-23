@@ -1967,6 +1967,17 @@ func TestModeRequiresBranch(t *testing.T) {
 	}
 }
 
+func TestRunWithWorktree_RejectsUncommittedPlanArchiving(t *testing.T) {
+	err := runWithWorktree(context.Background(), opts{}, executePlanRequest{
+		Config: &config.Config{
+			MovePlanOnCompletion: true,
+			CommitPlanFileSet:    true,
+			CommitPlanFile:       false,
+		},
+	})
+	require.ErrorContains(t, err, "cannot move an uncommitted plan")
+}
+
 func TestArchivePlan(t *testing.T) {
 	// #439: a rejected archive commit wrote to stderr, leaving nothing in the run's own record.
 	setup := func(t *testing.T, hook string) (executePlanRequest, *progress.Logger) {

@@ -449,6 +449,32 @@ func TestValuesLoader_Load_MovePlanOnCompletion(t *testing.T) {
 	}
 }
 
+func TestValuesLoader_Load_CommitPlanFile(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		want       bool
+		wantErr    bool
+	}{
+		{"default", "plans_dir = docs/plans", true, false},
+		{"enabled", "commit_plan_file = true", true, false},
+		{"disabled", "commit_plan_file = false", false, false},
+		{"invalid", "commit_plan_file = maybe", false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			configPath := filepath.Join(t.TempDir(), "config")
+			require.NoError(t, os.WriteFile(configPath, []byte(tc.body), 0o600))
+			values, err := newValuesLoader(defaultsFS).Load("", configPath)
+			if tc.wantErr {
+				require.ErrorContains(t, err, "commit_plan_file")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, values.CommitPlanFile)
+			assert.True(t, values.CommitPlanFileSet)
+		})
+	}
+}
+
 func TestValuesLoader_Load_LocalOverridesMovePlanOnCompletion(t *testing.T) {
 	tmpDir := t.TempDir()
 	globalConfig := filepath.Join(tmpDir, "global")

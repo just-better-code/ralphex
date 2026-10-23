@@ -146,6 +146,11 @@ external_review_tool = codex
 # default: true
 move_plan_on_completion = true
 
+# commit_plan_file: whether Ralphex commits the selected plan when creating a
+# branch and commits its move to completed/. Disabling this does not affect
+# task implementation commits. Default: true.
+commit_plan_file = true
+
 # ------------------------------------------------------------------------------
 # worktree isolation
 # ------------------------------------------------------------------------------
