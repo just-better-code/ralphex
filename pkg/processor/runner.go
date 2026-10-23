@@ -91,7 +91,7 @@ type Logger interface {
 	Path() string
 }
 
-// InputCollector provides interactive input collection for plan creation.
+// InputCollector provides interactive input collection for planning and tasks.
 type InputCollector interface {
 	AskQuestion(ctx context.Context, question string, options []string) (string, error)
 	AskDraftReview(ctx context.Context, question string, planContent string) (action string, feedback string, err error)
@@ -239,7 +239,7 @@ func NewWithExecutors(cfg Config, log Logger, execs Executors, holder *status.Ph
 	}
 }
 
-// SetInputCollector sets the input collector for plan creation mode.
+// SetInputCollector sets the input collector for planning and task modes.
 func (r *Runner) SetInputCollector(c InputCollector) {
 	if r.deps == nil {
 		r.deps = &phase.Deps{}

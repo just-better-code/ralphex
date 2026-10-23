@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 	"time"
 
 	"github.com/umputun/ralphex/pkg/plan"
@@ -103,6 +104,14 @@ func (p *TaskPhase) Run(ctx context.Context) error {
 			continue
 		}
 
+		if strings.Contains(result.Output, SignalQuestion) {
+			if err := p.askQuestion(ctx, result.Output); err != nil {
+				return err
+			}
+			retryCount = 0
+			continue
+		}
+
 		if result.Signal == SignalCompleted {
 			if p.HasUncompletedTasks() {
 				p.log.Print("warning: completion signal received but plan still has [ ] items, continuing...")
@@ -131,6 +140,25 @@ func (p *TaskPhase) Run(ctx context.Context) error {
 	}
 
 	return fmt.Errorf("max iterations (%d) reached without completion", p.cfg.MaxIterations)
+}
+
+func (p *TaskPhase) askQuestion(ctx context.Context, output string) error {
+	question, err := ParseQuestionPayload(output)
+	if err != nil {
+		return fmt.Errorf("task question: %w", err)
+	}
+	if p.deps == nil || p.deps.InputCollector == nil {
+		return errors.New("task question: input collector unavailable")
+	}
+
+	p.log.Print("QUESTION: %s", question.Question)
+	p.log.Print("OPTIONS: %s", strings.Join(question.Options, ", "))
+	answer, err := p.deps.InputCollector.AskQuestion(ctx, question.Question, question.Options)
+	if err != nil {
+		return fmt.Errorf("task question: collect answer: %w", err)
+	}
+	p.log.Print("ANSWER: %s", answer)
+	return nil
 }
 
 // ValidatePlanHasTasks rejects plan files without executable task sections.

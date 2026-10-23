@@ -67,6 +67,48 @@ func TestTaskPhase_Run_FailedSignal(t *testing.T) {
 	assert.Contains(t, err.Error(), "FAILED signal")
 }
 
+func TestTaskPhase_Run_QuestionContinuesSameTask(t *testing.T) {
+	planFile := writeTaskPhasePlan(t, "# Plan\n### Task 1: first\n- [ ] todo")
+	log := newMockLogger("progress.txt")
+	exec := newTaskPhaseMockExecutor([]executor.Result{
+		{Output: "<<<RALPHEX:QUESTION>>>\n{\"question\":\"Дозволити зміну?\",\"options\":[\"Так\",\"Ні\"]}\n<<<RALPHEX:END>>>"},
+		{Output: "still blocked", Signal: status.Failed},
+		{Output: "still blocked", Signal: status.Failed},
+	})
+	phase := taskPhaseFromRunner(t, taskPhaseTestOpts{
+		cfg: Config{MaxIterations: 10}, planFile: planFile, exec: exec, log: log,
+	})
+	collector := &inputCollectorMock{AskQuestionFunc: func(_ context.Context, _ string, _ []string) (string, error) {
+		return "Так", nil
+	}}
+	phase.deps.InputCollector = collector
+
+	err := phase.Run(t.Context())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FAILED signal")
+	assert.Len(t, collector.AskQuestionCalls(), 1)
+	assert.Equal(t, "Дозволити зміну?", collector.AskQuestionCalls()[0].Question)
+	assert.Equal(t, []string{"Так", "Ні"}, collector.AskQuestionCalls()[0].Options)
+	assert.Len(t, exec.RunCalls(), 3)
+	assert.Contains(t, log.PrintCalls(), printCall{Format: "ANSWER: %s", Args: []any{"Так"}})
+}
+
+func TestTaskPhase_Run_MalformedQuestionStops(t *testing.T) {
+	planFile := writeTaskPhasePlan(t, "# Plan\n### Task 1: first\n- [ ] todo")
+	exec := newTaskPhaseMockExecutor([]executor.Result{{Output: "<<<RALPHEX:QUESTION>>>\ninvalid\n<<<RALPHEX:END>>>"}})
+	phase := taskPhaseFromRunner(t, taskPhaseTestOpts{
+		cfg: Config{MaxIterations: 10}, planFile: planFile, exec: exec, log: newMockLogger("progress.txt"),
+	})
+	phase.deps.InputCollector = &inputCollectorMock{}
+
+	err := phase.Run(t.Context())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "malformed question signal")
+	assert.Len(t, exec.RunCalls(), 1)
+}
+
 func TestTaskPhase_Run_MaxIterations(t *testing.T) {
 	planFile := writeTaskPhasePlan(t, "# Plan\n### Task 1: first\n- [ ] todo")
 	log := newMockLogger("progress.txt")

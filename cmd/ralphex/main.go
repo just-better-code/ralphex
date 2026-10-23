@@ -650,6 +650,9 @@ func executePlan(ctx context.Context, o opts, req executePlanRequest) error {
 
 	// create and run the runner
 	r := createRunner(req, o, runnerLog, plr.holder)
+	if req.Mode == processor.ModeFull || req.Mode == processor.ModeTasksOnly {
+		r.SetInputCollector(input.NewTerminalCollector(o.NoColor))
+	}
 
 	// listen for SIGQUIT (Ctrl+\) for manual break during task and review loops
 	if breakCh := startBreakSignal(); breakCh != nil {
