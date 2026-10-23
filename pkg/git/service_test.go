@@ -443,6 +443,25 @@ func TestService_CreateBranchForPlan(t *testing.T) {
 	})
 }
 
+func TestService_CreateBranchForPlanWithoutPlanCommit(t *testing.T) {
+	dir := setupExternalTestRepo(t)
+	svc, err := NewService(dir, noopServiceLogger())
+	require.NoError(t, err)
+	svc.SetCommitPlanFile(false)
+
+	plansDir := filepath.Join(dir, "docs", "plans")
+	require.NoError(t, os.MkdirAll(plansDir, 0o750))
+	planFile := filepath.Join(plansDir, "feature.md")
+	require.NoError(t, os.WriteFile(planFile, []byte("# Plan"), 0o600))
+	before := runGit(t, dir, "rev-parse", "HEAD")
+
+	require.NoError(t, svc.CreateBranchForPlan(planFile, "master", ""))
+	assert.Equal(t, "feature", strings.TrimSpace(runGit(t, dir, "branch", "--show-current")))
+	assert.Equal(t, before, runGit(t, dir, "rev-parse", "HEAD"))
+	assert.FileExists(t, planFile)
+	assert.Contains(t, runGit(t, dir, "status", "--short"), "docs/")
+}
+
 func TestService_MovePlanToCompleted(t *testing.T) {
 	t.Run("moves tracked file", func(t *testing.T) {
 		dir := setupExternalTestRepo(t)
@@ -856,6 +875,37 @@ func TestService_MovePlanToCompleted(t *testing.T) {
 
 		assert.Equal(t, statusBefore, runGit(t, dir, "status", "--porcelain"), "no dangling source deletion")
 	})
+}
+
+func TestService_MovePlanToCompletedWithoutPlanCommit(t *testing.T) {
+	dir := setupExternalTestRepo(t)
+	svc, err := NewService(dir, noopServiceLogger())
+	require.NoError(t, err)
+	svc.SetCommitPlanFile(false)
+
+	plansDir := filepath.Join(dir, "docs", "plans")
+	require.NoError(t, os.MkdirAll(plansDir, 0o750))
+	planFile := filepath.Join(plansDir, "feature.md")
+	require.NoError(t, os.WriteFile(planFile, []byte("# Plan"), 0o600))
+	other := filepath.Join(dir, "other.txt")
+	require.NoError(t, os.WriteFile(other, []byte("staged"), 0o600))
+	require.NoError(t, svc.repo.add(other))
+	before := runGit(t, dir, "rev-parse", "HEAD")
+	stagedBefore := runGit(t, dir, "diff", "--cached", "--name-only")
+
+	require.NoError(t, svc.MovePlanToCompleted(planFile))
+	completed := filepath.Join(plansDir, "completed", "feature.md")
+	assert.NoFileExists(t, planFile)
+	assert.FileExists(t, completed)
+	assert.Equal(t, before, runGit(t, dir, "rev-parse", "HEAD"))
+	assert.Equal(t, stagedBefore, runGit(t, dir, "diff", "--cached", "--name-only"))
+	content, err := os.ReadFile(completed)
+	require.NoError(t, err)
+	assert.Equal(t, "# Plan", string(content))
+
+	// Repeating an archive after a completed run does not alter its contents.
+	require.NoError(t, svc.MovePlanToCompleted(planFile))
+	assert.FileExists(t, completed)
 }
 
 func TestService_EnsureHasCommits(t *testing.T) {

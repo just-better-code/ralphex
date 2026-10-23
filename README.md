@@ -215,6 +215,8 @@ Under `--worktree` the archive is committed on the feature branch, alongside the
 
 Set `move_plan_on_completion = false` in `~/.config/ralphex/config` or `.ralphex/config`. Default is `true`.
 
+Set `commit_plan_file = false` to move the plan without committing its creation or archive. Task implementation commits are unaffected. This combination requires `use_worktree = false`; a temporary worktree cannot preserve an uncommitted archived plan.
+
 **When to disable:** workflows that manage plan file lifecycle externally (e.g. spec-driven tooling where the plan lives inside a bundle that a separate archive step consumes) should opt out so ralphex doesn't fight the external tool's file layout.
 
 ### Review-Only Mode
@@ -996,6 +998,7 @@ Provider-related CLI flags (`--claude-command`, `--claude-args`, `--external-rev
 | `task_retry_count` | Task retry attempts | `1` |
 | `finalize_enabled` | Enable finalize step after reviews | `false` |
 | `move_plan_on_completion` | Move completed plan file into `docs/plans/completed/` on success (disable for external plan-lifecycle workflows) | `true` |
+| `commit_plan_file` | Commit the plan on branch creation and after archiving; `false` only moves the file | `true` |
 | `use_worktree` | Run each plan in an isolated git worktree (full and tasks-only modes only) | `false` |
 | `preserve_anthropic_api_key` | Pass `ANTHROPIC_API_KEY` through to the claude child process (for users authenticating Claude Code via API key rather than OAuth/keychain). Default `false` strips the key so a host-set value cannot silently override OAuth credentials | `false` |
 | `plans_dir` | Plans directory | `docs/plans` |

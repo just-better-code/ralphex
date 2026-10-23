@@ -400,6 +400,27 @@ func TestLoad_MovePlanOnCompletion(t *testing.T) {
 	}
 }
 
+func TestLoad_CommitPlanFile(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		want       bool
+	}{
+		{"default", "", true},
+		{"enabled", "commit_plan_file = true", true},
+		{"disabled", "commit_plan_file = false", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			configDir := filepath.Join(t.TempDir(), "ralphex")
+			require.NoError(t, os.MkdirAll(configDir, 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(configDir, "config"), []byte(tc.body), 0o600))
+			cfg, err := Load(configDir)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, cfg.CommitPlanFile)
+			assert.True(t, cfg.CommitPlanFileSet)
+		})
+	}
+}
+
 func TestLoad_PreserveAnthropicAPIKey(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -1522,7 +1543,7 @@ func TestConfig_JSONShape(t *testing.T) {
 		"codex_timeout_ms", "codex_sandbox", "external_review_tool", "custom_review_script",
 		"iteration_delay_ms", "task_retry_count", "max_iterations", "max_external_iterations",
 		"review_patience", "finalize_enabled", "preserve_anthropic_api_key", "executor",
-		"pass_claude_md", "move_plan_on_completion", "worktree_enabled", "plans_dir",
+		"pass_claude_md", "move_plan_on_completion", "commit_plan_file", "worktree_enabled", "plans_dir",
 		"watch_dirs", "default_branch", "vcs_command", "commit_trailer",
 		"claude_error_patterns", "codex_error_patterns", "claude_limit_patterns",
 		"codex_limit_patterns", "claude_retry_patterns", "wait_on_limit", "session_timeout", "idle_timeout",

@@ -63,6 +63,8 @@ type Values struct {
 	PassClaudeMdSet            bool // tracks if pass_claude_md was explicitly set
 	MovePlanOnCompletion       bool
 	MovePlanOnCompletionSet    bool // tracks if move_plan_on_completion was explicitly set
+	CommitPlanFile             bool
+	CommitPlanFileSet          bool // tracks if commit_plan_file was explicitly set
 	WorktreeEnabled            bool
 	WorktreeEnabledSet         bool   // tracks if use_worktree was explicitly set
 	VcsCommand                 string // custom VCS command (default: "git")
@@ -363,6 +365,14 @@ func (vl *valuesLoader) parseValuesFromBytes(data []byte) (Values, error) {
 		values.MovePlanOnCompletion = val
 		values.MovePlanOnCompletionSet = true
 	}
+	if key, err := section.GetKey("commit_plan_file"); err == nil {
+		val, boolErr := key.Bool()
+		if boolErr != nil {
+			return Values{}, fmt.Errorf("invalid commit_plan_file: %w", boolErr)
+		}
+		values.CommitPlanFile = val
+		values.CommitPlanFileSet = true
+	}
 
 	// worktree settings
 	if key, err := section.GetKey("use_worktree"); err == nil {
@@ -558,6 +568,10 @@ func (dst *Values) mergeExtraFrom(src *Values) {
 	if src.MovePlanOnCompletionSet {
 		dst.MovePlanOnCompletion = src.MovePlanOnCompletion
 		dst.MovePlanOnCompletionSet = true
+	}
+	if src.CommitPlanFileSet {
+		dst.CommitPlanFile = src.CommitPlanFile
+		dst.CommitPlanFileSet = true
 	}
 	if src.WorktreeEnabledSet {
 		dst.WorktreeEnabled = src.WorktreeEnabled

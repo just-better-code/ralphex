@@ -83,6 +83,8 @@ type Config struct {
 	PassClaudeMd bool   `json:"pass_claude_md"` // when true, codex reads project CLAUDE.md via project_doc_fallback_filenames; user-level ~/.claude/CLAUDE.md is not auto-passed (a one-time setup hint is printed)
 
 	MovePlanOnCompletion bool `json:"move_plan_on_completion"`
+	CommitPlanFile       bool `json:"commit_plan_file"`
+	CommitPlanFileSet    bool `json:"-"` // tracks if commit_plan_file was explicitly set in config
 
 	WorktreeEnabled    bool `json:"worktree_enabled"`
 	WorktreeEnabledSet bool `json:"-"` // tracks if use_worktree was explicitly set in config
@@ -318,6 +320,8 @@ func loadConfigFromDirs(globalDir, localDir string) (*Config, error) {
 		Executor:                values.Executor,
 		PassClaudeMd:            values.PassClaudeMd,
 		MovePlanOnCompletion:    values.MovePlanOnCompletion,
+		CommitPlanFile:          values.CommitPlanFile,
+		CommitPlanFileSet:       values.CommitPlanFileSet,
 		WorktreeEnabled:         values.WorktreeEnabled,
 		WorktreeEnabledSet:      values.WorktreeEnabledSet,
 		PlansDir:                values.PlansDir,
